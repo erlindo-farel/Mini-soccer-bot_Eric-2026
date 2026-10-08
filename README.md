@@ -31,7 +31,7 @@ Pada proyek ini kami membuat **2 robot** dengan peran berbeda:
 | **Driver motor L298N** | Mengatur arah putaran dan kecepatan motor DC, serta berperan dalam pengereman |
 | **Modul penurun tegangan (step-down)** | Menurunkan tegangan baterai menjadi tegangan stabil (5 V) untuk ESP32 |
 | **Solenoid** | Penendang bola. Saat diberi arus, batang solenoid terdorong keluar dengan cepat (Robot 1) |
-| **Motor DC gearbox (TT motor, bodi plastik kuning)** | Penggerak roda kiri dan kanan dengan torsi yang cukup |
+| **Motor DC gearbox** | Penggerak roda kiri dan kanan dengan torsi yang cukup |
 | **Free wheel (caster wheel)** | Roda tengah penyeimbang yang berputar bebas ke segala arah |
 | **Baterai 18650 (holder 3 slot)** | Sumber daya utama, tegangan sekitar 11,1 V (3S) |
 | **Filamen PLA** | Bahan cetak 3D untuk body/rangka robot |
@@ -112,9 +112,10 @@ Semua GND wajib disatukan (baterai, L298N, step-down, ESP32).
 
 ## 🏆 Tentang Kompetisi
 
-Robot ini dibuat untuk kompetisi robotik **ERIC** kategori mini soccer. `[Tambahkan tahun, penyelenggara, hasil/peringkat, dan nama anggota tim]`
+Robot ini dibuat untuk kompetisi robotik **ERIC (International Electronics and Robotics Innovation Competition)** kategori mini soccer `Pada tanggal 22-24 September 2026 di Universitas Negeri Jakarta`
 
 ## 👥 Tim
 
-- `[Nama anggota 1]`
-- `[Nama anggota 2]`
+- `[Abudin Sihite]`
+- `[Farel Erlindo]`
+- '[Abdul Malik Fathurahman]'
