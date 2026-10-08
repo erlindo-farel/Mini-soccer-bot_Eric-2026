@@ -55,7 +55,7 @@ Stik PS4 ──(Bluetooth)──► ESP32 ──► L298N ──► Motor kiri &
 ```
 
 ## 🔌 Wiring Diagram
-! [wiring robot mini soccer](wiring.jpg) 
+[wiring robot mini soccer](wiring.jpg) 
 
 ### Jalur Daya
 
