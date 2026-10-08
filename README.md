@@ -119,3 +119,7 @@ Robot ini dibuat untuk kompetisi robotik **ERIC (International Electronics and R
 - `[Abudin Sihite]`
 - `[Farel Erlindo]`
 - `[Abdul Malik Fathurahman]`
+
+## Dokumentasi
+![Robot 1 dengan solenoid kicker](robot1.jpg)
+![Robot 2 tanpa kicker](robot2.jpg)
