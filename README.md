@@ -118,4 +118,4 @@ Robot ini dibuat untuk kompetisi robotik **ERIC (International Electronics and R
 
 - `[Abudin Sihite]`
 - `[Farel Erlindo]`
-- '[Abdul Malik Fathurahman]'
+- `[Abdul Malik Fathurahman]`
