@@ -1,0 +1,196 @@
+#include <Bluepad32.h>
+
+// ==========================================
+// DEFINISI PIN MOTOR (L298N) & RELAY
+// ==========================================
+const int ENA = 18; const int IN1 = 21; const int IN2 = 19; // Motor Kanan
+const int ENB = 4;  const int IN3 = 32; const int IN4 = 14; // Motor Kiri
+const int pinRelay = 23; // Pin Kicker 
+
+// ==========================================
+// KALIBRASI LAJU LURUS
+// ==========================================
+float trimKanan = 1.0; 
+float trimKiri  = 0.75; // Penyeimbang dinamo kiri
+
+// ==========================================
+// SETUP PWM ESP32
+// ==========================================
+const int freq = 5000;
+const int pwmChannelA = 0;
+const int pwmChannelB = 1;
+const int resolution = 8; 
+
+float currentSpeedLeft = 0;
+float currentSpeedRight = 0;
+const float smoothingFactor = 0.30; 
+
+ControllerPtr myController = nullptr;
+
+void onConnectedController(ControllerPtr ctl) {
+  if (myController == nullptr) {
+    myController = ctl;
+    Serial.println("Stik PS4 Terhubung!");
+    myController->setColorLED(0, 0, 255); // LED indikator Biru
+  }
+}
+
+void onDisconnectedController(ControllerPtr ctl) {
+  if (myController == ctl) {
+    myController = nullptr;
+    Serial.println("Stik PS4 Terputus.");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+  pinMode(pinRelay, OUTPUT);
+  digitalWrite(pinRelay, LOW);
+
+  ledcSetup(pwmChannelA, freq, resolution);
+  ledcAttachPin(ENA, pwmChannelA);
+  
+  ledcSetup(pwmChannelB, freq, resolution);
+  ledcAttachPin(ENB, pwmChannelB);
+
+  BP32.setup(&onConnectedController, &onDisconnectedController);
+}
+
+void loop() {
+  BP32.update(); 
+
+  if (myController && myController->isConnected()) {
+
+    int rawY_L = myController->axisY(); 
+    int rawX_L = myController->axisX(); 
+    int rawY_R = myController->axisRY(); 
+    int rawX_R = myController->axisRX(); 
+    
+    bool isBrake = myController->r1();     
+    bool isKudaKuda = myController->l1();  
+    bool isKicker = myController->a(); // Tombol SILANG (X) pada PS4 (Bluepad32 mapping)
+
+    // SCALING SENSOR STIK
+    rawY_L = constrain(rawY_L, -400, 400);
+    rawX_L = constrain(rawX_L, -400, 400);
+    rawY_R = constrain(rawY_R, -400, 400);
+    rawX_R = constrain(rawX_R, -400, 400);
+
+    // DEADZONE
+    if (abs(rawY_L) < 60) rawY_L = 0;
+    if (abs(rawX_L) < 80) rawX_L = 0;
+    if (abs(rawY_R) < 60) rawY_R = 0;
+    if (abs(rawX_R) < 80) rawX_R = 0;
+
+    int targetDrive = 0;
+    int targetTurn = 0;
+    int maxSpeed = 255;
+
+    // DUAL MODE JOYSTICK
+    if (abs(rawY_R) > 0 || abs(rawX_R) > 0) {
+      // Analog Kanan -> Mode Presisi
+      targetDrive = map(-rawY_R, -400, 400, -maxSpeed, maxSpeed); 
+      if (abs(rawX_R) > 0) targetTurn = map(rawX_R, -400, 400, 120, -120); 
+    } else {
+      // Analog Kiri -> Mode Agresif
+      targetDrive = map(-rawY_L, -400, 400, -maxSpeed, maxSpeed); 
+      if (abs(rawX_L) > 0) targetTurn = map(rawX_L, -400, 400, 255, -255);
+    }
+
+    // HITUNG TRIM LAJU LURUS
+    float calcLeft  = (targetDrive + targetTurn) * trimKiri;
+    float calcRight = (targetDrive - targetTurn) * trimKanan;
+
+    calcLeft  = constrain(calcLeft, -maxSpeed, maxSpeed);
+    calcRight = constrain(calcRight, -maxSpeed, maxSpeed);
+
+    if (isKudaKuda || isBrake) {
+      targetDrive = 0; targetTurn = 0;
+      calcLeft = 0; calcRight = 0;
+      currentSpeedLeft = 0; currentSpeedRight = 0;
+    }
+
+    currentSpeedLeft += (calcLeft - currentSpeedLeft) * smoothingFactor;
+    currentSpeedRight += (calcRight - currentSpeedRight) * smoothingFactor;
+
+    int sendLeft = (int)currentSpeedLeft;
+    int sendRight = (int)currentSpeedRight;
+
+    // JUMP-START OTOMATIS
+    if (targetDrive != 0 || targetTurn != 0) {
+      if (sendLeft > 0 && sendLeft < 85) sendLeft = 85;
+      if (sendLeft < 0 && sendLeft > -85) sendLeft = -85;
+      
+      if (sendRight > 0 && sendRight < 85) sendRight = 85;
+      if (sendRight < 0 && sendRight > -85) sendRight = -85;
+    }
+
+    if (targetDrive == 0 && targetTurn == 0) {
+      if (abs(sendLeft) < 15) sendLeft = 0;
+      if (abs(sendRight) < 15) sendRight = 0;
+    }
+
+    // EKSEKUSI MOTOR
+    if (isKudaKuda) {
+      setMotorA_KudaKuda(); setMotorB_KudaKuda();
+    } else if (isBrake) {
+      setMotorA(0); setMotorB(0);
+    } else {
+      setMotorA(sendRight); 
+      setMotorB(sendLeft);  
+    }
+
+    // ==========================================
+    // KICKER (TOMBOL SILANG / CROSS)
+    // ==========================================
+    if (isKicker) { 
+      digitalWrite(pinRelay, HIGH);
+      delay(250); // Waktu impuls solenoid
+      digitalWrite(pinRelay, LOW);
+
+      while (myController->a()) { 
+        BP32.update(); // Mencegah spaming tombol saat ditahan
+        delay(10); 
+      } 
+      delay(500); // Cooldown
+    } else {
+      digitalWrite(pinRelay, LOW);
+    }
+
+  } else {
+    // KEAMANAN SAAT KONEKSI TERPUTUS
+    currentSpeedLeft = 0; currentSpeedRight = 0;
+    setMotorA(0); setMotorB(0); digitalWrite(pinRelay, LOW);
+  }
+
+  delay(15); 
+}
+
+// ==========================================
+// FUNGSI KONTROL DRIVER L298N
+// ==========================================
+void setMotorA(int speed) { 
+  if (speed > 0) { 
+    digitalWrite(IN1, LOW); digitalWrite(IN2, HIGH); ledcWrite(pwmChannelA, speed); 
+  } else if (speed < 0) { 
+    digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW); ledcWrite(pwmChannelA, abs(speed)); 
+  } else { 
+    digitalWrite(IN1, LOW); digitalWrite(IN2, LOW); ledcWrite(pwmChannelA, 0); 
+  }
+}
+
+void setMotorB(int speed) { 
+  if (speed > 0) { 
+    digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH); ledcWrite(pwmChannelB, speed); 
+  } else if (speed < 0) { 
+    digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW); ledcWrite(pwmChannelB, abs(speed)); 
+  } else { 
+    digitalWrite(IN3, LOW); digitalWrite(IN4, LOW); ledcWrite(pwmChannelB, 0); 
+  }
+}
+
+void setMotorA_KudaKuda() { digitalWrite(IN1, HIGH); digitalWrite(IN2, HIGH); ledcWrite(pwmChannelA, 255); }
+void setMotorB_KudaKuda() { digitalWrite(IN3, HIGH); digitalWrite(IN4, HIGH); ledcWrite(pwmChannelB, 255); }
